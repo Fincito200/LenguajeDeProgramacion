@@ -3,12 +3,24 @@ from .dado import Dado
 from .jugador import Jugador
 from .tablero import Tablero
 
+# El Java original tenia el numero de jugadores fijo en 2 (hardcodeado
+# en el constructor de Juego). Aqui se generaliza a un rango
+# configurable de 2 a 6 jugadores.
+MIN_JUGADORES = 2
+MAX_JUGADORES = 6
+
 
 class Juego:
     """Equivalente a Juego.java: coordina jugadores, dado y tablero."""
 
-    def __init__(self):
-        self.jugadores: list[Jugador] = [Jugador("Jugador 1"), Jugador("Jugador 2")]
+    def __init__(self, num_jugadores: int = 2):
+        if not (MIN_JUGADORES <= num_jugadores <= MAX_JUGADORES):
+            raise ValueError(
+                f"El numero de jugadores debe estar entre {MIN_JUGADORES} y {MAX_JUGADORES}."
+            )
+        self.jugadores: list[Jugador] = [
+            Jugador(f"Jugador {i}") for i in range(1, num_jugadores + 1)
+        ]
         self.turno_actual = 0
         self.dado = Dado()
         self.tablero = Tablero()

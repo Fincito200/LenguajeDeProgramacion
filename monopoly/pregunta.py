@@ -26,6 +26,7 @@ class Pregunta:
 
 
 PREGUNTAS: list[Pregunta] = [
+    # ---- Preguntas originales del proyecto Java ----
     Pregunta("¿Capital de Perú?", "Lima"),
     Pregunta("¿2 + 2?", "4"),
     Pregunta("¿Color del cielo?", "Azul"),
@@ -36,6 +37,46 @@ PREGUNTAS: list[Pregunta] = [
     Pregunta("¿Qué civilización antigua construyó Machu Picchu?", "Los Incas"),
     Pregunta("¿Qué animal pone huevos más grandes: el elefante o el avestruz?", "Avestruz"),
     Pregunta("¿Qué tipo de palabra es \"correr\": sustantivo o verbo?", "Verbo"),
+
+    # ---- Matemáticas ----
+    Pregunta("¿Cuánto es 9 × 9?", "81"),
+    Pregunta("¿Cuál es la raíz cuadrada de 64?", "8"),
+    Pregunta("Si tengo 3 docenas de huevos, ¿cuántos huevos tengo?", "36"),
+    Pregunta("¿Cuánto es 100 dividido entre 4?", "25"),
+    Pregunta("¿Cuánto es 7 + 8?", "15"),
+    Pregunta("¿Cuántos lados tiene un hexágono?", "6"),
+    Pregunta("¿Cuántos grados tiene un ángulo recto?", "90"),
+    Pregunta("¿Cuánto es 12 × 3?", "36"),
+
+    # ---- Ciencia ----
+    Pregunta("¿Cuál es el planeta más grande del sistema solar?", "Júpiter"),
+    Pregunta("¿Cuántos huesos tiene el cuerpo humano adulto?", "206"),
+    Pregunta("¿Qué gas necesitamos respirar para vivir?", "Oxígeno"),
+    Pregunta("¿Qué órgano bombea la sangre en el cuerpo humano?", "Corazón"),
+    Pregunta("¿Cuántas patas tiene una araña?", "8"),
+    Pregunta("¿Cuál es el planeta más cercano al Sol?", "Mercurio"),
+    Pregunta("¿Cuál es la fórmula química del agua?", "H2O"),
+
+    # ---- Geografía ----
+    Pregunta("¿Cuál es el río más largo del mundo?", "Amazonas"),
+    Pregunta("¿Cuál es el continente más grande del mundo?", "Asia"),
+    Pregunta("¿Capital de Francia?", "París"),
+    Pregunta("¿Capital de Japón?", "Tokio"),
+    Pregunta("¿En qué continente está Egipto?", "África"),
+    Pregunta("¿Cuál es el océano más grande del mundo?", "Pacífico"),
+    Pregunta("¿Cuál es el país más poblado del mundo?", "China"),
+
+    # ---- Historia y cultura ----
+    Pregunta("¿Quién escribió \"Don Quijote de la Mancha\"?", "Cervantes"),
+    Pregunta("¿En qué año llegó Cristóbal Colón a América?", "1492"),
+    Pregunta("¿Qué civilización antigua construyó las pirámides de Egipto?", "Egipcios"),
+    Pregunta("¿En qué país se encuentra la Torre Eiffel?", "Francia"),
+
+    # ---- Lenguaje y cultura general ----
+    Pregunta("¿Cuántas letras tiene el abecedario español (incluyendo la ñ)?", "27"),
+    Pregunta("¿Cuál es el plural de \"papel\"?", "Papeles"),
+    Pregunta("¿Cómo se llama el signo \"?\" que se usa al final de una pregunta?", "Interrogación"),
+    Pregunta("¿Cuántos días tiene febrero en un año bisiesto?", "29"),
 ]
 
 
