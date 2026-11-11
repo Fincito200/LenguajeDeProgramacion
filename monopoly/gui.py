@@ -593,7 +593,9 @@ class PrincipalApp(tk.Tk):
         creditos = tk.Canvas(izquierda, width=360, height=44, bg=PALETTE["bg_soft"], highlightthickness=0)
         creditos.pack(side="bottom", anchor="w", pady=(12, 0))
         _rounded_rect(creditos, 0, 0, 360, 44, radius=12, fill=PALETTE["surface"], outline="")
-        creditos.create_text(180, 22, text="✒️ J.Olivares, A.Copara, A.Chavez, D.Bocanegra, A.Zarabia", font=FONT_LABEL, fill=PALETTE["muted"])
+        creditos.create_text(180, 22,
+                             text="✒️ J.Olivares, A.Copara, A.Chavez,\nD.Bocanegra, A.Zarabia, E.Saavedra",
+                             font=FONT_LABEL, fill=PALETTE["muted"], justify="center")
 
         # Las tarjetas de resultado se generan dinamicamente en
         # _mostrar_score (una por jugador, ordenadas por puntaje), ya
