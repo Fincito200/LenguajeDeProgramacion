@@ -145,6 +145,7 @@ class PrincipalApp(tk.Tk):
         # partida hasta que el usuario elige cuantos van a jugar (2-6)
         # y confirma sus nombres en la pestaña "Jugadores".
         self.juego: Juego | None = None
+        self._partida_finalizada = False
         self.casilla_canvas: list[tk.Canvas] = []
         self.paneles_jugadores: list[dict[str, "_TextProxy"]] = []
         self.entries_jugadores: list[ttk.Entry] = []
@@ -567,10 +568,12 @@ class PrincipalApp(tk.Tk):
         scroll.config(command=self.txt_errores.yview)
         self.txt_errores.config(state="disabled")
 
-    def _agregar_errores(self, texto: str):
-        if not texto:
+    def _actualizar_errores(self):
+        if self.juego is None:
             return
+        texto = "".join(errores_de(jugador) for jugador in self.juego.get_jugadores())
         self.txt_errores.config(state="normal")
+        self.txt_errores.delete("1.0", "end")
         self.txt_errores.insert("end", texto)
         self.txt_errores.config(state="disabled")
         self.txt_errores.see("end")
@@ -590,7 +593,7 @@ class PrincipalApp(tk.Tk):
         creditos = tk.Canvas(izquierda, width=360, height=44, bg=PALETTE["bg_soft"], highlightthickness=0)
         creditos.pack(side="bottom", anchor="w", pady=(12, 0))
         _rounded_rect(creditos, 0, 0, 360, 44, radius=12, fill=PALETTE["surface"], outline="")
-        creditos.create_text(180, 22, text="✒️ J.Olivares, A.Copara, A.Chavez", font=FONT_LABEL, fill=PALETTE["muted"])
+        creditos.create_text(180, 22, text="✒️ J.Olivares, A.Copara, A.Chavez, D.Bocanegra, A.Zarabia", font=FONT_LABEL, fill=PALETTE["muted"])
 
         # Las tarjetas de resultado se generan dinamicamente en
         # _mostrar_score (una por jugador, ordenadas por puntaje), ya
@@ -692,7 +695,7 @@ class PrincipalApp(tk.Tk):
         calcula aqui con Juego.get_dado().tirar() y se guarda, pero no se
         aplica al jugador hasta que termina la animacion en
         _resolver_tirada."""
-        if self.juego is None:
+        if self.juego is None or self._partida_finalizada:
             return
         self.btn_tirar.config(state="disabled")
         valor_dado = self.juego.get_dado().tirar()
@@ -705,12 +708,14 @@ class PrincipalApp(tk.Tk):
             self.after(self.ANIMACION_DADO_INTERVALO_MS, self._animar_dado, valor_dado, pasos_restantes - 1)
         else:
             self.lbl_numero_dado.config(text=str(valor_dado))
-            self.btn_tirar.config(state="normal")
             self._resolver_tirada(valor_dado)
 
     def _resolver_tirada(self, valor_dado: int):
         """Continua jbtnTirarActionPerformed una vez que la animacion del
         dado terminó y se conoce el resultado final."""
+        if self.juego is None or self._partida_finalizada:
+            return
+        self.btn_tirar.config(state="disabled")
         jugador_actual = self.juego.get_jugador_actual()
         jugador_actual.mover(valor_dado, len(self.casilla_canvas))
 
@@ -732,9 +737,12 @@ class PrincipalApp(tk.Tk):
         # || puntosJ2 >= 100, hardcodeado a 2 jugadores), aqui se revisa
         # si CUALQUIERA de los N jugadores llego a 100 puntos.
         if any(j.get_puntos() >= 100 for j in self.juego.get_jugadores()):
+            self._partida_finalizada = True
             self._mostrar_score()
+            return
 
         self.juego.siguiente_turno()
+        self.btn_tirar.config(state="normal")
 
     def _hacer_pregunta(self, jugador):
         pregunta = pregunta_aleatoria()
@@ -756,7 +764,7 @@ class PrincipalApp(tk.Tk):
         else:
             messagebox.showinfo("Resultado", "Incorrecto, será para la proxima")
 
-        self._agregar_errores(errores_de(jugador))
+        self._actualizar_errores()
 
     def _dialogo_pregunta(self, jugador, enunciado: str):
         """Ventana modal propia para la pregunta: a diferencia de

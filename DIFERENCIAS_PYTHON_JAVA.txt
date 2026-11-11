@@ -1,0 +1,54 @@
+DIFERENCIAS ENTRE LA IMPLEMENTACIÓN EN JAVA Y PYTHON DEL MONOPOLY
+
+El Monopoly desarrollado en Python es una adaptación del proyecto original en Java. Ambos conservan la programación orientada a objetos mediante clases como Jugador, Juego, Tablero, Casilla, Dado, Pregunta y RegistroPregunta. También mantienen el tablero de 12 casillas, el movimiento circular, los turnos, los comodines, los 10 puntos por respuesta correcta y la exportación de estadísticas. La versión de Python incorpora cambios en la interfaz, la organización del código y algunas reglas del juego.
+
+1. Interfaz gráfica
+
+Java utiliza Swing, con componentes como JFrame, JTabbedPane, JLabel y JOptionPane. Su ventana está diseñada con el editor visual de NetBeans. En Python se implementó la interfaz con Tkinter y ttk, utilizando Canvas para dibujar el tablero, las fichas y las tarjetas de resultados. Se centralizaron los colores y las fuentes, se añadieron esquinas redondeadas y colores por jugador, y se incorporó desplazamiento en las reglas y los resultados. Estas son decisiones de esta implementación, no diferencias obligatorias entre los lenguajes.
+
+2. Cantidad de jugadores y nombres
+
+El proyecto Java crea dos jugadores fijos. La versión de Python permite elegir entre dos y seis jugadores y genera sus campos de nombre, fichas y paneles de forma dinámica. Además, Java solo actualiza las etiquetas visibles al confirmar los nombres; Python también guarda los nombres elegidos dentro de los objetos Jugador, por lo que se utilizan en las preguntas, los resultados y las estadísticas.
+
+3. Organización del código
+
+En Java, Pregunta.hacerPregunta combina la selección de la pregunta, los diálogos, la evaluación y el registro. En Python, pregunta.py concentra el banco y la evaluación, mientras gui.py presenta los diálogos. La exportación se trasladó desde Principal.java a estadisticas.py. Esta separación permite comprobar la lógica de preguntas y puntajes sin abrir la ventana.
+
+4. Banco de preguntas
+
+El banco original de Java contiene 10 preguntas. En Python se amplió a 40, incluyendo matemáticas, ciencia, geografía, historia y lenguaje. La selección sigue siendo aleatoria; la ampliación ofrece más variedad, aunque no impide que una pregunta vuelva a aparecer.
+
+5. Animación del dado
+
+Java muestra y aplica directamente el resultado de la tirada. En Python se añadió una animación de aproximadamente un segundo mediante after(). El resultado real se calcula antes de la animación y se aplica cuando esta termina. El botón de tirar permanece deshabilitado durante la animación y la resolución del turno.
+
+6. Funcionamiento de los comodines
+
+En Java, al obtener un comodín se puede utilizar en esa misma tirada, mediante un diálogo previo a la pregunta. En Python, caer en la casilla que entrega el comodín termina ese turno sin hacer una pregunta. En un turno posterior, el jugador puede leer la pregunta y elegir «Usar Comodín» dentro del mismo diálogo. Utilizarlo permite saltar la pregunta sin sumar puntos ni fallos.
+
+7. Clasificación de resultados
+
+Java calcula el primer y segundo puesto, pero muestra las estadísticas de los dos jugadores en un orden fijo que puede no coincidir con esos puestos. Python ordena a todos los participantes por puntaje y genera una tarjeta por jugador, manteniendo juntos el puesto, el nombre, los puntos y los fallos.
+
+8. Correcciones recientes de la versión de Python
+
+Se incorporó un estado de partida finalizada que bloquea nuevas tiradas cuando alguien alcanza los 100 puntos. También se cambió la pestaña Corrección para reconstruir el contenido desde los historiales de todos los jugadores, evitando repetir errores ya mostrados. Finalmente, la evaluación y el reporte utilizan la misma normalización: ignoran mayúsculas y eliminan espacios al inicio y al final. Por ejemplo, « Lima » se acepta como respuesta correcta y ya no se muestra como un error.
+
+9. Adaptaciones técnicas
+
+Java declara tipos y modificadores de acceso como private; Python utiliza atributos y anotaciones de tipo opcionales. Los tres constructores de Casilla en Java se adaptaron a un constructor con parámetros opcionales en Python. Las listas de Python sustituyen a ArrayList, y __str__ cumple la función de toString para representar los registros. El dado conserva resultados del 1 al 6: Java usa Random.nextInt(6) + 1 y Python random.randint(1, 6).
+
+10. Imágenes, audio y estadísticas
+
+Python utiliza Pillow para cargar y transformar imágenes y obtener los fotogramas del GIF, que se anima con after(). Java utiliza ImageIcon. Para el audio, Java emplea javax.sound.sampled y Python utiliza winsound, por lo que la reproducción implementada en Python funciona solo en Windows. Ambos exportan puntos, fallos e historial a Estadisticas.txt; Python escribe con codificación UTF-8 y conserva la estructura del reporte original.
+
+La adaptación mantiene la base del juego y amplía la participación, la variedad de preguntas y la presentación de resultados. Las mejoras descritas corresponden a cambios del proyecto; también podrían implementarse en Java. Se conserva una particularidad del original: al mostrar los resultados se selecciona la pestaña Corrección; el ranking está disponible en Score.
+
+FUENTES Y ALCANCE
+
+Java: https://github.com/Fincito200/ProyectoFinalPOO
+Python: https://github.com/Fincito200/LenguajeDeProgramacion
+
+Comparación preparada el 10 de noviembre de 2026 a partir del código Java y la versión de Python que acompaña este documento. Principal.java, Juego.java y Pregunta.java se contrastaron con GitHub y coinciden con las copias locales. La actualización de Python incluye las correcciones recientes y los créditos D.Bocanegra y A.Zarabia.
+
+Archivos de referencia: Java: Principal.java, Juego.java, Pregunta.java, Casilla.java, Dado.java y Tablero.java, dentro de src/proyectofinalpoo. Python: monopoly/gui.py, juego.py, pregunta.py, casilla.py, dado.py y estadisticas.py.

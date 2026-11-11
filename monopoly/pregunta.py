@@ -84,6 +84,10 @@ def pregunta_aleatoria() -> Pregunta:
     return random.choice(PREGUNTAS)
 
 
+def _normalizar_respuesta(respuesta: str) -> str:
+    return respuesta.strip().lower()
+
+
 def evaluar_respuesta(jugador: Jugador, pregunta: Pregunta, respuesta: str | None) -> bool:
     """Aplica el efecto de responder `respuesta` a `pregunta` sobre `jugador`.
 
@@ -91,7 +95,7 @@ def evaluar_respuesta(jugador: Jugador, pregunta: Pregunta, respuesta: str | Non
     sin la parte de UI. Devuelve True si la respuesta fue correcta.
     """
     respuesta_jugador = respuesta if respuesta is not None else "Sin respuesta"
-    correcta = respuesta is not None and respuesta.strip().lower() == pregunta.get_respuesta().lower()
+    correcta = respuesta is not None and _normalizar_respuesta(respuesta) == _normalizar_respuesta(pregunta.get_respuesta())
 
     if correcta:
         jugador.sumar_puntos(10)
@@ -109,7 +113,7 @@ def errores_de(jugador: Jugador) -> str:
     el StringBuilder `errores` de Pregunta.hacerPregunta."""
     partes = []
     for registro in jugador.get_historial():
-        if registro.get_respuesta_jugador().lower() != registro.get_respuesta_correcta().lower():
+        if _normalizar_respuesta(registro.get_respuesta_jugador()) != _normalizar_respuesta(registro.get_respuesta_correcta()):
             partes.append(
                 f"Jugador: {jugador.get_nombre()}\n"
                 f"Pregunta: {registro.get_pregunta()}\n"
