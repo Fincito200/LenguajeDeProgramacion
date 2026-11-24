@@ -16,7 +16,7 @@ En Java, Pregunta.hacerPregunta combina la selección de la pregunta, los diálo
 
 4. Banco de preguntas
 
-El banco original de Java contiene 10 preguntas. En Python se amplió a 40, incluyendo matemáticas, ciencia, geografía, historia y lenguaje. La selección sigue siendo aleatoria; la ampliación ofrece más variedad, aunque no impide que una pregunta vuelva a aparecer.
+El banco original de Java contiene 10 preguntas. En Python se amplió a 40, incluyendo matemáticas, ciencia, geografía, historia y lenguaje. El banco se baraja una vez al crear la partida. Cada pregunta mostrada se retira de la selección y no vuelve a salir durante esa partida, tampoco después de cargarla.
 
 5. Animación del dado
 
@@ -40,9 +40,9 @@ Java declara tipos y modificadores de acceso como private; Python utiliza atribu
 
 10. Imágenes, audio y estadísticas
 
-Python utiliza Pillow para cargar y transformar imágenes y obtener los fotogramas del GIF, que se anima con after(). Java utiliza ImageIcon. Para el audio, Java emplea javax.sound.sampled y Python utiliza winsound, por lo que la reproducción implementada en Python funciona solo en Windows. Ambos exportan puntos, fallos e historial a Estadisticas.txt; Python escribe con codificación UTF-8 y conserva la estructura del reporte original.
+Python utiliza Pillow para cargar y transformar imágenes y obtener los fotogramas del GIF, que se anima con after(). Java utiliza ImageIcon. Para el audio, Java emplea javax.sound.sampled y Python utiliza pygame-ce/SDL para reproducir el mismo WAV con código compatible con Windows, macOS y Linux. La reproducción se verificó en Windows. Java exporta a Estadisticas.txt. Python escribe reportes UTF-8 independientes por partida dentro de datos/resultados, conservando el reporte anterior de la versión antigua.
 
-La adaptación mantiene la base del juego y amplía la participación, la variedad de preguntas y la presentación de resultados. Las mejoras descritas corresponden a cambios del proyecto; también podrían implementarse en Java. Se conserva una particularidad del original: al mostrar los resultados se selecciona la pestaña Corrección; el ranking está disponible en Score.
+La adaptación mantiene la base del juego y amplía la participación, la variedad de preguntas y la presentación de resultados. Las mejoras descritas corresponden a cambios del proyecto; también podrían implementarse en Java. Al terminar, Python selecciona directamente Score y conserva Corrección como pestaña consultable.
 
 FUENTES Y ALCANCE
 
@@ -52,3 +52,7 @@ Python: https://github.com/Fincito200/LenguajeDeProgramacion
 Comparación preparada el 10 de noviembre de 2026 a partir del código Java y la versión de Python que acompaña este documento. Principal.java, Juego.java y Pregunta.java se contrastaron con GitHub y coinciden con las copias locales. La actualización de Python incluye las correcciones recientes y los créditos D.Bocanegra y A.Zarabia.
 
 Archivos de referencia: Java: Principal.java, Juego.java, Pregunta.java, Casilla.java, Dado.java y Tablero.java, dentro de src/proyectofinalpoo. Python: monopoly/gui.py, juego.py, pregunta.py, casilla.py, dado.py y estadisticas.py.
+
+ACTUALIZACIÓN DEL 24 DE NOVIEMBRE DE 2026
+
+Python incorpora guardado automático al finalizar turnos y al cerrar, guardado manual, apertura de JSON y recuperación mediante una copia anterior validada. Conserva jugadores, puntajes, posiciones, comodines, fallos, historial, turno y preguntas pendientes. Si se agota el banco antes de los 100 puntos, termina y clasifica por puntaje sin repetir preguntas. El audio aportado por el usuario se convirtió completo a songMonkey.wav. Se completó una partida en la interfaz real de Windows y se comprobó el cierre y la continuación. El informe editado por el usuario no fue modificado.

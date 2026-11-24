@@ -1,0 +1,28 @@
+VERIFICACIÓN DEL SISTEMA MONOPOLY
+Fecha: 24 de noviembre de 2026
+
+Estado anterior
+El código todavía permitía repetir preguntas, no guardaba partidas, reemplazaba el último reporte y no incluía songMonkey.wav. El informe actualizado ya describía algunas de esas funciones.
+
+Cambios integrados
+- Banco de cuarenta preguntas barajadas una sola vez, compartido por todos los jugadores. Toda pregunta mostrada se consume, aunque se cancele o salte con un comodín.
+- Finalización por 100 puntos o por agotamiento del banco, sin reiniciarlo. Si se agota, se clasifica por puntaje; los empates conservan el orden de los jugadores.
+- Guardado JSON automático al confirmar participantes, terminar un turno y cerrar. Menú Partida con guardar, guardar como, abrir, continuar, nueva partida e historial.
+- Persistencia de nombres, puntos, posiciones, turno, comodines, fallos, respuestas y banco pendiente. Escrituras atómicas, validación y recuperación desde una copia anterior .bak con aviso.
+- Un reporte UTF-8 por partida en datos/resultados. Consultar una partida finalizada no duplica ni modifica sus resultados. El reporte antiguo Estadisticas.txt se conserva.
+- Conversión completa del MP3 aportado por el usuario a songMonkey.wav: PCM, 16 bits, estéreo, 44 100 Hz, 218,48 segundos. Se conserva el MP3 original.
+- Reproductor pygame-ce/SDL con inicio, parada, bucle y liberación al salir. Audio probado en Windows con dispositivo real; macOS y Linux no se ejecutaron.
+- Formularios de cuatro a seis jugadores en dos columnas y tablero con seis tarjetas visibles. Score se abre al terminar.
+
+Pruebas automatizadas
+10 pruebas pasaron: ausencia de repetición y agotamiento; victoria; carga íntegra de dos a seis jugadores; banco persistido; recuperación de JSON dañado o ausente; rechazo de datos inválidos; protección del guardado ante fallo de escritura; reportes distintos sin duplicación; formato JSON. También pasaron compileall y git diff --check.
+
+Prueba de interfaz real en Windows
+Se abrió Tkinter y se jugó una partida completa mediante sus controles reales. Durante la partida se cerró y volvió a abrir la aplicación; Continuar recuperó 10 puntos del primer jugador, su posición y el turno del segundo, con 39 preguntas pendientes. Se comprobó el botón Música, una respuesta incorrecta, una cancelación y el uso de un comodín. La partida terminó con 22 preguntas distintas: jugador cd con 100 puntos y 2 fallos, jugador ab con 80 puntos y 1 fallo. Se observó el ranking, el bloqueo de Tirar, el panel Corrección sin duplicados y el resultado en Historial junto al reporte antiguo. Además se cargó una partida de seis jugadores para verificar tarjetas, fichas y formulario sin recortes.
+
+Las pruebas usaron datos/pruebas_ui, sin crear una partida de prueba como guardado principal. El informe Word proporcionado por el usuario no fue modificado. No se realizó push a GitHub en esta actualización.
+
+Uso
+.venv\Scripts\python.exe main.py
+Guardar y continuar: menú Partida o botón Continuar partida guardada.
+Pruebas: .venv\Scripts\python.exe -m unittest discover -s tests -v

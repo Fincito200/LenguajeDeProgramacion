@@ -13,16 +13,17 @@ elegidos por el usuario (ver monopoly.juego.MIN_JUGADORES/MAX_JUGADORES).
 from __future__ import annotations
 
 import random
-import sys
 import tkinter as tk
 from pathlib import Path
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 
 from PIL import Image, ImageSequence, ImageTk
 
 from .estadisticas import exportar_estadisticas
+from .audio import ReproductorMusica
 from .juego import MAX_JUGADORES, MIN_JUGADORES, Juego
-from .pregunta import errores_de, evaluar_respuesta, pregunta_aleatoria
+from .pregunta import errores_de, evaluar_respuesta
+from .persistencia import DIRECTORIO_DATOS, RUTA_PARTIDA, cargar_partida, guardar_partida
 
 ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 
@@ -125,7 +126,8 @@ def _rounded_rect(canvas: tk.Canvas, x1, y1, x2, y2, radius=16, **kwargs):
 class PrincipalApp(tk.Tk):
     """Equivalente a la clase Principal (JFrame) del proyecto Java."""
 
-    def __init__(self):
+    def __init__(self, ruta_guardado: Path = RUTA_PARTIDA,
+                 directorio_resultados: Path | None = None):
         super().__init__()
         self.title("Monopoly")
         self.configure(bg=PALETTE["bg"])
@@ -146,6 +148,10 @@ class PrincipalApp(tk.Tk):
         # y confirma sus nombres en la pestaña "Jugadores".
         self.juego: Juego | None = None
         self._partida_finalizada = False
+        self._turno_en_curso = False
+        self._ruta_guardado = Path(ruta_guardado)
+        self._directorio_resultados = directorio_resultados
+        self._audio = ReproductorMusica()
         self.casilla_canvas: list[tk.Canvas] = []
         self.paneles_jugadores: list[dict[str, "_TextProxy"]] = []
         self.entries_jugadores: list[ttk.Entry] = []
@@ -175,9 +181,158 @@ class PrincipalApp(tk.Tk):
         self._build_tab_monopoly()
         self._build_tab_correccion()
         self._build_tab_score()
+        self._crear_menu_partida()
+        self.protocol("WM_DELETE_WINDOW", self._cerrar)
 
         self.update_idletasks()
         self.eval("tk::PlaceWindow . center")
+
+    def _crear_menu_partida(self):
+        barra = tk.Menu(self)
+        partida = tk.Menu(barra, tearoff=False)
+        partida.add_command(label="Nueva partida", command=self._nueva_partida)
+        partida.add_command(label="Continuar última partida", command=self._continuar_partida)
+        partida.add_command(label="Abrir partida…", command=self._abrir_partida)
+        partida.add_separator()
+        partida.add_command(label="Guardar partida", command=lambda: self._guardar_partida(avisar=True))
+        partida.add_command(label="Guardar como…", command=self._guardar_como)
+        partida.add_command(label="Historial de resultados", command=self._ver_historial)
+        partida.add_separator()
+        partida.add_command(label="Salir", command=self._cerrar)
+        barra.add_cascade(label="Partida", menu=partida)
+        self.config(menu=barra)
+
+    def _guardar_partida(self, avisar=False):
+        if self.juego is None:
+            if avisar:
+                messagebox.showinfo("Guardar", "Primero configura una partida.")
+            return True
+        if self._turno_en_curso:
+            messagebox.showinfo("Guardar", "Termina el turno antes de guardar.")
+            return False
+        try:
+            guardar_partida(self.juego, self._ruta_guardado)
+        except (OSError, ValueError) as error:
+            messagebox.showerror("No se pudo guardar", str(error))
+            return False
+        if avisar:
+            messagebox.showinfo("Partida guardada", f"Puedes cerrar y continuar después.\n{self._ruta_guardado}")
+        return True
+
+    def _guardar_como(self):
+        if self._turno_en_curso or self.juego is None:
+            return
+        ruta = filedialog.asksaveasfilename(title="Guardar partida", defaultextension=".json",
+                                          filetypes=[("Partida Monopoly", "*.json")])
+        if ruta:
+            anterior = self._ruta_guardado
+            self._ruta_guardado = Path(ruta)
+            if not self._guardar_partida(avisar=True):
+                self._ruta_guardado = anterior
+
+    def _abrir_partida(self):
+        if self._turno_en_curso:
+            return
+        ruta = filedialog.askopenfilename(title="Abrir partida", filetypes=[("Partida Monopoly", "*.json")])
+        if ruta:
+            self._cargar_partida(Path(ruta))
+
+    def _continuar_partida(self):
+        self._cargar_partida(self._ruta_guardado)
+
+    def _cargar_partida(self, ruta: Path):
+        if self._turno_en_curso:
+            return
+        try:
+            cargada = cargar_partida(ruta)
+        except (OSError, ValueError) as error:
+            messagebox.showerror("No se pudo continuar", str(error))
+            return
+        if self.juego is not None and not self._guardar_partida():
+            return
+        self._ruta_guardado = ruta
+        self.juego = cargada
+        self._partida_finalizada = cargada.finalizada
+        self.spin_num_jugadores.config(state="readonly")
+        self.spin_num_jugadores.set(len(cargada.jugadores))
+        self._regenerar_campos_nombre()
+        for entry, jugador in zip(self.entries_jugadores, cargada.jugadores):
+            entry.insert(0, jugador.nombre)
+            entry.config(state="disabled")
+        self.spin_num_jugadores.config(state="disabled")
+        self.btn_confirmar.config(state="disabled")
+        self._reconstruir_paneles_jugadores([j.nombre for j in cargada.jugadores])
+        self._actualizar_tablero()
+        self._actualizar_errores()
+        self.btn_tirar.config(state="disabled" if cargada.finalizada else "normal")
+        if cargada.finalizada:
+            self._mostrar_score(avisar=False)
+        else:
+            self.notebook.select(self._tab_monopoly)
+        if cargada.recuperada_desde_copia:
+            messagebox.showwarning("Guardado recuperado", "Se recuperó la copia anterior porque el archivo principal no era válido.")
+
+    def _nueva_partida(self):
+        if self._turno_en_curso:
+            return
+        if self.juego is not None:
+            if not messagebox.askyesno("Nueva partida", "Se guardará la partida actual. ¿Quieres empezar otra?"):
+                return
+            if not self._guardar_partida():
+                return
+        self.juego = None
+        self._partida_finalizada = False
+        self.spin_num_jugadores.config(state="readonly")
+        self._regenerar_campos_nombre()
+        self.btn_confirmar.config(state="normal")
+        self.btn_tirar.config(state="disabled")
+        self.notebook.select(self._tab_jugadores)
+
+    def _ver_historial(self):
+        carpeta = self._directorio_resultados or DIRECTORIO_DATOS / "resultados"
+        ventana = tk.Toplevel(self)
+        ventana.title("Historial de resultados")
+        ventana.geometry("850x550")
+        lista = tk.Listbox(ventana, width=42, exportselection=False)
+        lista.pack(side="left", fill="y", padx=10, pady=10)
+        texto = tk.Text(ventana, wrap="word", state="disabled")
+        texto.pack(side="left", expand=True, fill="both", padx=(0, 10), pady=10)
+        scroll = ttk.Scrollbar(ventana, command=texto.yview)
+        scroll.pack(side="right", fill="y")
+        texto.config(yscrollcommand=scroll.set)
+        archivos = sorted(carpeta.glob("*.txt"), key=lambda p: p.stat().st_mtime, reverse=True)
+        for archivo in archivos:
+            lista.insert("end", archivo.stem)
+        if not archivos:
+            lista.insert("end", "Aún no hay partidas terminadas")
+
+        def mostrar(_evento=None):
+            if not archivos or not lista.curselection():
+                return
+            try:
+                contenido = archivos[lista.curselection()[0]].read_text(encoding="utf-8")
+            except OSError as error:
+                messagebox.showerror("Historial", str(error), parent=ventana)
+                return
+            texto.config(state="normal")
+            texto.delete("1.0", "end")
+            texto.insert("end", contenido)
+            texto.config(state="disabled")
+
+        lista.bind("<<ListboxSelect>>", mostrar)
+        if archivos:
+            lista.selection_set(0)
+            mostrar()
+
+    def _cerrar(self):
+        if self._turno_en_curso:
+            messagebox.showinfo("Turno en curso", "Termina el turno antes de cerrar para conservar su resultado.")
+            return
+        if not self._guardar_partida():
+            if not messagebox.askyesno("Salir sin guardar", "El guardado falló. ¿Quieres salir perdiendo el avance desde el último guardado?"):
+                return
+        self._audio.cerrar()
+        self.destroy()
 
     # ------------------------------------------------------------------
     # Tema / estilos ttk (Notebook, botones, entradas)
@@ -284,12 +439,20 @@ class PrincipalApp(tk.Tk):
             command=self._confirmar_jugadores,
         )
         self.btn_confirmar.pack(pady=(16, 4), fill="x", padx=30)
+        ttk.Button(card, text="Continuar partida guardada", style="Secondary.TButton",
+                   command=self._continuar_partida).pack(pady=(4, 4), fill="x", padx=30)
+        ttk.Button(card, text="Historial de resultados", style="Secondary.TButton",
+                   command=self._ver_historial).pack(pady=(4, 4), fill="x", padx=30)
 
         self._regenerar_campos_nombre()
 
-    def _campo_nombre(self, parent, placeholder, color):
+    def _campo_nombre(self, parent, placeholder, color, posicion=None):
         wrapper = tk.Frame(parent, bg=PALETTE["surface"])
-        wrapper.pack(pady=6, padx=30, fill="x")
+        if posicion is None:
+            wrapper.pack(pady=6, padx=30, fill="x")
+        else:
+            fila, columna = posicion
+            wrapper.grid(row=fila, column=columna, pady=6, padx=18, sticky="ew")
         tk.Label(wrapper, text=placeholder, font=FONT_LABEL, fg=color,
                  bg=PALETTE["surface"]).pack(anchor="w")
         entry = ttk.Entry(wrapper, font=FONT_BODY, style="Monopoly.TEntry")
@@ -302,12 +465,16 @@ class PrincipalApp(tk.Tk):
         en el Java original, que siempre tenia exactamente 2 campos fijos
         (jtxtJ1/jtxtJ2)."""
         n = int(self.spin_num_jugadores.get())
+        self._card_w = 560 if n > 3 else 460
+        self.contenedor_nombres.columnconfigure(0, weight=1)
+        self.contenedor_nombres.columnconfigure(1, weight=1)
 
         for widget in self.contenedor_nombres.winfo_children():
             widget.destroy()
 
         self.entries_jugadores = [
-            self._campo_nombre(self.contenedor_nombres, f"Jugador {i + 1}", PLAYER_COLORS[i])
+            self._campo_nombre(self.contenedor_nombres, f"Jugador {i + 1}", PLAYER_COLORS[i],
+                               divmod(i, 2) if n > 3 else None)
             for i in range(n)
         ]
 
@@ -336,6 +503,9 @@ class PrincipalApp(tk.Tk):
         if any(not nombre for nombre in nombres):
             messagebox.showinfo("Aviso", "Por favor ingresa el nombre de todos los jugadores.")
             return
+        if self._ruta_guardado.exists():
+            if not messagebox.askyesno("Nueva partida", "Se reemplazará el guardado para continuar. Los resultados anteriores se conservan. ¿Empezar una partida nueva?"):
+                return
 
         # A diferencia del Java original (que solo cambiaba la etiqueta
         # visible y dejaba el objeto Jugador con el nombre interno
@@ -354,6 +524,7 @@ class PrincipalApp(tk.Tk):
         self.spin_num_jugadores.config(state="disabled")
         self.btn_confirmar.config(state="disabled")
         self.btn_tirar.config(state="normal")
+        self._guardar_partida()
 
         messagebox.showinfo(
             "Listo",
@@ -367,37 +538,49 @@ class PrincipalApp(tk.Tk):
         frame = self._tab_reglas
         tk.Label(frame, text="📜 Reglas del juego", font=FONT_TITLE,
                  fg=PALETTE["accent_dark"], bg=PALETTE["bg_soft"]).pack(pady=(16, 8))
+        tk.Label(frame, text="Todo lo que necesitas para jugar, en una sola pantalla.",
+                 font=FONT_LABEL, fg=PALETTE["text"], bg=PALETTE["bg_soft"]).pack(pady=(0, 8))
 
         contenedor = tk.Frame(frame, bg=PALETTE["surface"])
         contenedor.pack(expand=True, fill="both", padx=24, pady=(0, 24))
 
-        # La imagen de reglas puede ser mas alta que la ventana (sobre
-        # todo en pantallas chicas), asi que en vez de encogerla hasta
-        # que el texto se vuelva illegible, se muestra en un Canvas con
-        # scroll vertical para poder recorrerla completa.
-        canvas = tk.Canvas(contenedor, bg=PALETTE["surface"], highlightthickness=0)
-        vscroll = ttk.Scrollbar(contenedor, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=vscroll.set)
-        canvas.pack(side="left", fill="both", expand=True, padx=10, pady=10)
-        vscroll.pack(side="right", fill="y")
-
-        imagen = Image.open(ASSETS_DIR / "reglas.jpg")
-        # Solo se limita el ancho; si el contenido no entra
-        # verticalmente en la ventana, se recorre con la barra de scroll
-        # en vez de reducir la imagen hasta hacer el texto ilegible.
-        imagen.thumbnail((1150, 100_000))
-        imagen_tk = ImageTk.PhotoImage(imagen)
-        self._imagenes.append(imagen_tk)
-
-        img_label = tk.Label(canvas, image=imagen_tk, bg=PALETTE["surface"])
-        canvas.create_window((0, 0), window=img_label, anchor="nw")
-        canvas.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-
-        def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-
-        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _on_mousewheel))
-        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+        # Texto real en dos columnas: todas las reglas quedan visibles,
+        # con la misma letra del juego y sin reducir una imagen larga.
+        for columna in range(2):
+            contenedor.columnconfigure(columna, weight=1, uniform="reglas")
+        for fila in range(3):
+            contenedor.rowconfigure(fila, weight=1)
+        reglas = [
+            ("1. Configura la partida",
+             "Elige de 2 a 6 jugadores y confirma sus nombres.\n"
+             "Todos empiezan en Inicio con 0 puntos. El tablero tiene 12 casillas."),
+            ("2. Lanza el dado",
+             "En tu turno, pulsa Tirar. Avanza de 1 a 6 casillas según el resultado.\n"
+             "Al pasar la última casilla, el recorrido vuelve al inicio."),
+            ("3. Responde la pregunta",
+             "Cada acierto suma 10 puntos. Una respuesta incorrecta o cancelada cuenta como fallo.\n"
+             "Se ignoran mayúsculas y espacios exteriores; las tildes sí cuentan."),
+            ("4. Aprovecha los comodines",
+             "Caer en la casilla 6 te da un comodín y termina tu turno sin pregunta.\n"
+             "En otro turno, Usar Comodín salta la pregunta sin sumar puntos ni fallos."),
+            ("5. Final de la partida",
+             "Gana quien llega a 100 puntos. Las 40 preguntas no se repiten.\n"
+             "Si se agotan, se clasifica por puntaje; los empates conservan el orden de los jugadores."),
+            ("6. Guarda y continúa",
+             "El avance se guarda al terminar cada turno y al cerrar.\n"
+             "Usa el menú Partida para guardar, abrir o continuar. Los resultados anteriores quedan en Historial."),
+        ]
+        for indice, (titulo, texto) in enumerate(reglas):
+            columna, fila = divmod(indice, 3)
+            bloque = tk.Frame(contenedor, bg=PALETTE["surface"])
+            bloque.grid(row=fila, column=columna, sticky="nsew", padx=24, pady=12)
+            tk.Label(bloque, text=titulo, font=FONT_BODY_BOLD, anchor="w",
+                     fg=PALETTE["accent_dark"], bg=PALETTE["surface"]).pack(fill="x", pady=(0, 8))
+            contenido = tk.Label(bloque, text=texto, font=FONT_BODY, anchor="nw", justify="left",
+                                 wraplength=440, fg=PALETTE["text"], bg=PALETTE["surface"])
+            contenido.pack(fill="x")
+            bloque.bind("<Configure>", lambda evento, etiqueta=contenido:
+                        etiqueta.config(wraplength=max(240, evento.width)))
 
     # ------------------------------------------------------------------
     # Tab 3: Monopoly (jpanelMonopoly)
@@ -433,7 +616,8 @@ class PrincipalApp(tk.Tk):
         icono_img.thumbnail((64, 64))
         icono_tk = ImageTk.PhotoImage(icono_img)
         self._imagenes.append(icono_tk)
-        tk.Label(centro_interior, image=icono_tk, bg=PALETTE["bg"]).pack(pady=(0, 4))
+        self._logo_tablero = tk.Label(centro_interior, image=icono_tk, bg=PALETTE["bg"])
+        self._logo_tablero.pack(pady=(0, 4))
 
         # Placeholder hasta que se confirmen los jugadores en la pestaña
         # "Jugadores"; se reemplaza por las tarjetas reales en
@@ -471,6 +655,9 @@ class PrincipalApp(tk.Tk):
         self.btn_tirar.pack(pady=(0, 6))
         ttk.Button(botones, text="🎵  Música", style="Secondary.TButton",
                    command=self._toggle_musica).pack()
+        self.lbl_turno = tk.Label(centro_interior, text="", font=FONT_LABEL,
+                                 fg=PALETTE["surface"], bg=PALETTE["bg"], wraplength=400)
+        self.lbl_turno.pack(pady=(4, 0))
 
     def _reconstruir_paneles_jugadores(self, nombres: list[str]):
         """Reemplaza el placeholder (o las tarjetas de una partida
@@ -478,6 +665,10 @@ class PrincipalApp(tk.Tk):
         columnas para que quepan cómodamente hasta 6 jugadores."""
         for widget in self.panel_jugadores_frame.winfo_children():
             widget.destroy()
+        if len(nombres) > 3:
+            self._logo_tablero.pack_forget()
+        elif not self._logo_tablero.winfo_manager():
+            self._logo_tablero.pack(before=self.panel_jugadores_frame, pady=(0, 4))
 
         self.paneles_jugadores = []
         columnas = min(3, len(nombres))
@@ -594,7 +785,7 @@ class PrincipalApp(tk.Tk):
         creditos.pack(side="bottom", anchor="w", pady=(12, 0))
         _rounded_rect(creditos, 0, 0, 360, 44, radius=12, fill=PALETTE["surface"], outline="")
         creditos.create_text(180, 22,
-                             text="✒️ J.Olivares, A.Copara, A.Chavez,\nD.Bocanegra, A.Zarabia, E.Saavedra",
+                             text="✒️ A.Copara, A.Chavez,\nD.Bocanegra, A.Zarabia, E.Saavedra",
                              font=FONT_LABEL, fill=PALETTE["muted"], justify="center")
 
         # Las tarjetas de resultado se generan dinamicamente en
@@ -667,6 +858,9 @@ class PrincipalApp(tk.Tk):
     def _actualizar_tablero(self):
         if self.juego is None:
             return
+        turno = self.juego.get_jugador_actual().get_nombre()
+        estado = "Partida terminada" if self.juego.finalizada else f"Turno: {turno}"
+        self.lbl_turno.config(text=f"{estado} | Preguntas restantes: {len(self.juego.preguntas_pendientes)}")
 
         for canvas in self.casilla_canvas:
             canvas._jugadores_aqui = []
@@ -697,8 +891,9 @@ class PrincipalApp(tk.Tk):
         calcula aqui con Juego.get_dado().tirar() y se guarda, pero no se
         aplica al jugador hasta que termina la animacion en
         _resolver_tirada."""
-        if self.juego is None or self._partida_finalizada:
+        if self.juego is None or self._partida_finalizada or self._turno_en_curso:
             return
+        self._turno_en_curso = True
         self.btn_tirar.config(state="disabled")
         valor_dado = self.juego.get_dado().tirar()
         pasos = self.ANIMACION_DADO_MS // self.ANIMACION_DADO_INTERVALO_MS
@@ -738,16 +933,26 @@ class PrincipalApp(tk.Tk):
         # A diferencia del Java original (que comparaba puntosJ1 >= 100
         # || puntosJ2 >= 100, hardcodeado a 2 jugadores), aqui se revisa
         # si CUALQUIERA de los N jugadores llego a 100 puntos.
-        if any(j.get_puntos() >= 100 for j in self.juego.get_jugadores()):
+        if self.juego.comprobar_final():
             self._partida_finalizada = True
+            self._turno_en_curso = False
+            self._actualizar_tablero()
+            self._guardar_partida()
+            if self.juego.motivo_fin == "sin_preguntas":
+                messagebox.showinfo("Fin de la partida", "Se agotaron las preguntas sin repetir. Se clasificará a los jugadores por sus puntos.")
             self._mostrar_score()
             return
 
         self.juego.siguiente_turno()
+        self._turno_en_curso = False
+        self._actualizar_tablero()
+        self._guardar_partida()
         self.btn_tirar.config(state="normal")
 
     def _hacer_pregunta(self, jugador):
-        pregunta = pregunta_aleatoria()
+        pregunta = self.juego.sacar_pregunta()
+        if pregunta is None:
+            return
         respuesta = self._dialogo_pregunta(jugador, pregunta.get_enunciado())
 
         if respuesta is _USAR_COMODIN:
@@ -821,7 +1026,7 @@ class PrincipalApp(tk.Tk):
         self.wait_window(dialogo)
         return resultado["valor"]
 
-    def _mostrar_score(self):
+    def _mostrar_score(self, avisar=True):
         # A diferencia del Java original (que solo comparaba j1 vs j2
         # para decidir 1er/2do puesto), aqui se arma un ranking completo
         # de los N jugadores ordenados por puntaje, con medalla para el
@@ -840,42 +1045,18 @@ class PrincipalApp(tk.Tk):
             texto_resultado = f"{jugador.get_nombre()} puntos: {jugador.get_puntos()} | Fallos: {jugador.get_fallos()}"
             self._tarjeta_score(self.score_cards_frame, medalla, color, texto_puesto, texto_resultado)
 
-        # Fiel al original: Principal.java hace
-        # jtblMonopolyPrincipal.setSelectedIndex(3), que en realidad
-        # selecciona la pestaña "Correccion" (indice 3), no "Score"
-        # (indice 4) -- el comentario del propio autor admite que el
-        # indice quedo sin ajustar. Se conserva ese comportamiento aqui
-        # por fidelidad; ver README para el detalle.
-        self.notebook.select(self._tab_correccion)
-
-        exportar_estadisticas(self.juego)
-        messagebox.showinfo("Estadísticas", "Estadísticas exportadas exitosamente en Estadisticas.txt")
+        self.notebook.select(self._tab_score)
+        try:
+            ruta = exportar_estadisticas(self.juego, directorio=self._directorio_resultados)
+        except OSError as error:
+            messagebox.showerror("Resultados sin exportar", f"La partida terminó, pero no se pudo escribir el reporte.\n{error}")
+            return
+        if avisar:
+            messagebox.showinfo("Estadísticas", f"Resultado conservado en el historial.\n{ruta}")
 
     def _toggle_musica(self):
-        ruta = ASSETS_DIR / "songMonkey.wav"
-        if not ruta.exists():
-            messagebox.showerror(
-                "Música",
-                "No se encontró 'songMonkey.wav'.\n"
-                "Este archivo de audio tampoco estaba presente en el "
-                "proyecto Java original (referenciado en el codigo pero "
-                "ausente de src/proyectofinalpoo).",
-            )
-            return
-
-        if sys.platform != "win32":
-            messagebox.showerror("Música", "La reproducción de audio solo está implementada para Windows (winsound).")
-            return
-
-        import winsound
-
         try:
-            if not self._reproduciendo:
-                winsound.PlaySound(str(ruta), winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_LOOP)
-                self._reproduciendo = True
-            else:
-                winsound.PlaySound(None, winsound.SND_PURGE)
-                self._reproduciendo = False
+            self._reproduciendo = self._audio.alternar(ASSETS_DIR / "songMonkey.wav")
         except Exception as error:
             messagebox.showerror("Música", f"Error al reproducir audio: {error}")
 
